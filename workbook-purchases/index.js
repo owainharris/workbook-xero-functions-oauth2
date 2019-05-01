@@ -1,4 +1,5 @@
 const axios = require("axios");
+const addDays = require("date-fns/add_days");
 module.exports = async function(context, req) {
   const baseURL = await req.body.auth.baseURL;
   const workbookUserName = await req.body.auth.workbookUserName;
@@ -15,77 +16,111 @@ module.exports = async function(context, req) {
     }
   };
 
-  context.log("Starting parents");
-  //GET INVOICE PARENTS
   try {
-    const response = await axios.get(
-      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/followup/job/invoices/visualization/readyforprint`,
-      headers
+    const res = await axios.get(
+      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/job/purchases`,
+      {
+        headers: {
+          Authorization: `Basic ${encoded}`,
+          Accept: "application/json",
+          "Access-Control-Allow-Credentials": "true",
+          "Access-Control-Allow-Origin": "gzip*",
+          "X-Requested-With": "application/json"
+        }
+      }
     );
-    let invoices = response.data.map(i => {
-      return {
-        Type: "ACCREC",
-        Total: i.TotalCurrencyAmount,
-        Contact: {
-          Name: i.CustomerName
-        },
-        Date: i.InvoiceDate,
-        LineAmountTypes: "Exclusive",
-        Reference: i.JobName,
-        CurrencyCode: i.CurrencyCode,
-        Status: "DRAFT",
-        LineItems: {},
-        Id: i.Id,
-        InvoiceNumber: i.InvoiceNumber
-      };
-    });
 
-    if (invoices.length === 0) {
+    let parentPurchases = await res.data.filter(i => i.Status === 40);
+
+    if (parentPurchases.length === 0) {
       context.res = {
         status: 200,
         body: "none"
       };
+      context.done();
     }
 
-    let invoice_ids = invoices.map(invoice_ids => invoice_ids.Id);
-    const invoiceDetialsArr = invoice_ids.map(async invoice_ids => {
+    const supplierIds = parentPurchases
+      .filter(purchase => purchase.Status === 40)
+      .map(purchase => purchase.VendorResourceId);
+
+    const suppliersArr = supplierIds.map(async ids => {
       const response = await axios.get(
-        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/invoice/${invoice_ids}`,
-        headers
+        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/resource/${ids}`,
+        {
+          headers: {
+            Authorization: `Basic ${encoded}`,
+            Accept: "application/json",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Origin": "gzip",
+            "X-Requested-With": "application/json"
+          }
+        }
       );
       return response.data;
     });
-    const individualInvoices = await Promise.all(invoiceDetialsArr);
 
-    const mappedDueDates = individualInvoices.map(item => {
-      let dueDate = "";
-      if (item.DueDate === undefined || item.DueDate === null) {
-        dueDate = addDays(Date.now(), 30);
-      } else {
-        dueDate = item.DueDate;
-      }
+    const suppliers = await Promise.all(suppliersArr);
+
+    const supplierCodes = suppliers.map(item => {
       return {
-        Id: item.Id,
-        DueDate: dueDate
+        supplierId: item.Id,
+        externalCode: item.ExternalCode
       };
     });
-    let final = invoices.map(item1 => {
+
+    let joinSuppliers = parentPurchases.map(item1 => {
       return Object.assign(
         item1,
-        mappedDueDates.find(item2 => {
-          return item2 && item1.Id === item2.Id;
+        supplierCodes.find(item2 => {
+          return item2 && item1.VendorResourceId === item2.supplierId;
         })
       );
     });
 
-    // GET REVENUE
+    const purchAndSupp = joinSuppliers
+      .filter(item => item.Status === 40)
+      .map(item => {
+        let DeliveryDate = "";
+        if (item.DeliveryDate === undefined || item.DeliveryDate === null) {
+          DeliveryDate = addDays(Date.now(), 30);
+        } else {
+          DeliveryDate = item.DeliveryDate;
+        }
+        return {
+          PurchaseOrderNumber: item.Id,
+          Total: item.Cost,
+          Date: item.Date,
+          DeliveryDate: DeliveryDate,
+          Reference: item.Title,
+          Contact: { ContactID: item.externalCode },
+          Status: "DRAFT",
+          LineAmountTypes: "Exclusive",
+          LineItems: [],
+          Id: item.Id
+        };
+      });
+    let purchases = await purchAndSupp;
+
+    const purchaseIds = parentPurchases
+      .filter(purchase => purchase.Status === 40)
+      .map(purchase => purchase.Id);
+
     const getActivities = await axios.get(
       `https://immense-shore-64867.herokuapp.com/${baseURL}/api/core/activities/company`,
-      headers
+      {
+        headers: {
+          Authorization: `Basic ${encoded}`,
+          Accept: "application/json",
+          "Access-Control-Allow-Credentials": "true",
+          "Access-Control-Allow-Origin": "gzip",
+          "X-Requested-With": "application/json"
+        }
+      }
     );
-    let activitiesResults = await getActivities.data;
+    let actResults = await getActivities.data;
 
-    let revenueIds = activitiesResults
+    let revenueIds = actResults
       .filter(result => {
         return result.RevenueAccountId !== undefined;
       })
@@ -98,13 +133,21 @@ module.exports = async function(context, req) {
     const revenueAccountsArr = uniqueRevenueIds.map(async ids => {
       const response = await axios.get(
         `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/account/${ids}`,
-        headers
+        {
+          headers: {
+            Authorization: `Basic ${encoded}`,
+            Accept: "application/json",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Origin": "gzip",
+            "X-Requested-With": "application/json"
+          }
+        }
       );
       return response.data;
     });
     const revenueAccounts = await Promise.all(revenueAccountsArr);
 
-    let flattenedRevenue = activitiesResults.map(item1 => {
+    let flattenedRevenue = actResults.map(item1 => {
       return Object.assign(
         item1,
         revenueAccounts.find(item2 => {
@@ -124,68 +167,78 @@ module.exports = async function(context, req) {
         return item.AccountNumber !== undefined;
       });
 
-    let revenue = mappedActRev;
+    let revenue = await mappedActRev;
 
-    // IF invoices returned a non empty array, continue
-    let ids = invoices.map(ids => ids.Id);
-
-    const invoiceDetailsArr = ids.map(async ids => {
+    const purchaseLinesArr = purchaseIds.map(async ids => {
       const response = await axios.get(
-        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/invoice/${ids}/lines`,
+        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/purchase/${ids}/details`,
         headers
       );
       return response.data;
     });
-    const invoiceDetailsResponse = await Promise.all(invoiceDetailsArr);
+    const purchaseLines = await Promise.all(purchaseLinesArr);
+    const flattenedPurchaseLines = [].concat(...purchaseLines);
 
-    const flattenedinvoiceDetails = [].concat(...invoiceDetailsResponse);
-
-    let invoiceDetails = flattenedinvoiceDetails.map(i => {
-      return {
-        Id: i.Id,
-        InvoiceId: i.InvoiceId,
-        Description: i.Description,
-        Quantity: 1,
-        UnitAmount: i.AmountNetCurrency,
-        TaxAmount: i.AmountVATCurrency,
-        AccountCode: i.ActivityId
-      };
-    });
-
-    invoiceDetails.map(item1 => {
+    let purchaseLinesJoined = flattenedPurchaseLines.map(item1 => {
       return Object.assign(
         item1,
         revenue.find(item2 => {
-          return item2 && item1.AccountCode === item2.ActivityId;
+          return item2 && item1.ActivityId === item2.ActivityId;
         })
       );
     });
+    let purchaseMapXero = purchaseLinesJoined.map(i => {
+      if (i.Unit === undefined) {
+        i.Unit = 0;
+      }
+      if (i.UnitCost === undefined) {
+        i.UnitCost = 0;
+      }
+      if (i.Quantity === undefined) {
+        i.Quantity = 0;
+      }
 
-    const detailsJoined = invoiceDetails.map(i => {
       return {
         Id: i.Id,
-        InvoiceId: i.InvoiceId,
-        Description: i.Description,
-        Quantity: 1,
-        UnitAmount: i.UnitAmount,
-        TaxAmount: i.TaxAmount,
+        PurchaseId: i.PurchaseId,
+        Description: i.Subject,
+        Quantity: i.Unit,
+        UnitAmount: i.UnitCost,
+        AccountCode: i.AccountNumber
+      };
+    });
+    purchaseMapXero = purchaseLinesJoined.map(i => {
+      if (i.Subject === undefined) {
+        i.Subject = "N/A";
+      }
+      return {
+        Id: i.Id,
+        PurchaseId: i.PurchaseId,
+        Description: i.Subject,
+        Quantity: i.Unit,
+        UnitAmount: i.UnitCost,
         AccountCode: i.AccountNumber
       };
     });
 
-    const invoicesMappedToDetails = invoices.map(invoice => {
-      invoice.LineItems = detailsJoined.filter(
-        line => line.InvoiceId === invoice.Id
+    const purchasesToPostJoin = purchases.map(purchase => {
+      purchase.LineItems = purchaseMapXero.filter(
+        line => line.PurchaseId === purchase.PurchaseOrderNumber
       );
-      return invoice;
+      return purchase;
     });
-    context.log(invoicesMappedToDetails);
-    // return res.send(invoicesMappedToDetails);
+    let purchasesToPost = purchasesToPostJoin.filter(
+      po => po.Contact.ContactID !== undefined
+    );
+
+    // Return data once processed
     context.res = {
       status: 200,
-      body: invoicesMappedToDetails
+      body: purchasesToPost
     };
+    return purchasesToPost;
   } catch (e) {
+    context.log(e);
     context.res = {
       status: 200,
       body: "9"
