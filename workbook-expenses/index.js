@@ -35,7 +35,7 @@ module.exports = async function(context, req) {
     let creditorInvoices = await creditors.data
 
       // FILTER FOR: STAUS=40 (PROCESSED), TYPE=1(CREDITOR INVOICE)
-      .filter(i => i.VoucherStatusId === 40 && i.VoucherType !== 1)
+      .filter(i => i.VoucherStatusId === 40 && i.VoucherType === 1)
       .map(i => {
         if (i.Comment === undefined) {
           i.Comment = "";
@@ -81,9 +81,9 @@ module.exports = async function(context, req) {
       ...creditorInvoiceDetailsResponse
     );
 
-    // NEXT WE CAN OBTAIN SUPPLIER DATA
+    // NEXT WE CAN OBTAIN EMPOYEE DATA
     const vendorResponse = await axios.get(
-      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/accounts/creditors?EmployeeCreditor=false`,
+      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/accounts/creditors?EmployeeCreditor=true`,
       headers
     );
     let vendors = vendorResponse.data.map(i => {

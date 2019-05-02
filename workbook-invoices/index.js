@@ -22,6 +22,14 @@ module.exports = async function(context, req) {
       `https://immense-shore-64867.herokuapp.com/${baseURL}/api/followup/job/invoices/visualization/readyforprint`,
       headers
     );
+
+    if (response.data.length === 0) {
+      context.res = {
+        status: 200,
+        body: "none"
+      };
+    }
+
     let invoices = response.data.map(i => {
       return {
         Type: "ACCREC",
@@ -39,15 +47,6 @@ module.exports = async function(context, req) {
         InvoiceNumber: i.InvoiceNumber
       };
     });
-
-    console.log(1);
-
-    if (invoices.length === 0) {
-      context.res = {
-        status: 200,
-        body: "none"
-      };
-    }
 
     let invoice_ids = invoices.map(invoice_ids => invoice_ids.Id);
     const invoiceDetialsArr = invoice_ids.map(async invoice_ids => {
