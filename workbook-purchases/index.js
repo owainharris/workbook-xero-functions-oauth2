@@ -39,6 +39,13 @@ module.exports = async function(context, req) {
 
     let parentPurchases = await res.data.filter(i => i.Status === 40);
 
+    if (parentPurchases.length === 0) {
+      context.res = {
+        status: 200,
+        body: "none"
+      };
+    }
+
     const supplierIds = parentPurchases
       .filter(purchase => purchase.Status === 40)
       .map(purchase => purchase.VendorResourceId);

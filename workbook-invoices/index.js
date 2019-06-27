@@ -57,7 +57,6 @@ module.exports = async function(context, req) {
       return response.data;
     });
     const individualInvoices = await Promise.all(invoiceDetialsArr);
-    console.log(2);
 
     const mappedDueDates = individualInvoices.map(item => {
       let dueDate = "";
@@ -96,7 +95,6 @@ module.exports = async function(context, req) {
       });
 
     const uniqueRevenueIds = [...new Set(revenueIds)];
-    console.log(3);
 
     const revenueAccountsArr = uniqueRevenueIds.map(async ids => {
       const response = await axios.get(
@@ -116,8 +114,6 @@ module.exports = async function(context, req) {
       );
     });
 
-    console.log(4);
-
     const mappedActRev = flattenedRevenue
       .map(item => {
         return {
@@ -131,24 +127,20 @@ module.exports = async function(context, req) {
 
     let revenue = mappedActRev;
 
-    console.log(5);
-
     // IF invoices returned a non empty array, continue
     let ids = invoices.map(ids => ids.Id);
-    console.log(6);
+
     const invoiceDetailsArr = ids.map(async ids => {
-      console.log(7);
       const response = await axios.get(
         `https://immense-shore-64867.herokuapp.com/${baseURL}/api/invoice/${ids}/lines`,
         headers
       );
-      console.log(8);
+
       return response.data;
     });
     const invoiceDetailsResponse = await Promise.all(invoiceDetailsArr);
-    console.log(9);
+
     const flattenedinvoiceDetails = [].concat(...invoiceDetailsResponse);
-    console.log(10);
 
     let invoiceDetails = flattenedinvoiceDetails.map(i => {
       return {
@@ -191,6 +183,8 @@ module.exports = async function(context, req) {
     });
     // context.log(invoicesMappedToDetails);
     // return res.send(invoicesMappedToDetails);
+
+    context.log(JSON.stringify(invoicesMappedToDetails));
     context.res = {
       status: 200,
       body: invoicesMappedToDetails

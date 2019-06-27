@@ -15,6 +15,8 @@ module.exports = async function(context, req) {
   // Send request data to the Xero invoices API and wait for a response
   try {
     let result = await xero.invoices.create(req.body);
+    console.log(JSON.stringify("RESULT: ", result));
+
     // Check and filter for returned response errors or warnings for each invoice
     let issues = await result.Invoices.map(e => {
       return {
@@ -24,6 +26,7 @@ module.exports = async function(context, req) {
       };
     }).filter(obj => obj);
     let response = await issues;
+    console.log(JSON.stringify(response));
     // Send returned data from Xero including errors or warnings
     context.res = {
       status: 200,
