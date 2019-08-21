@@ -1,18 +1,18 @@
-const axios = require("axios");
-const addDays = require("date-fns/add_days");
+const axios = require('axios');
+const addDays = require('date-fns/add_days');
 module.exports = async function(context, req) {
   const baseURL = await req.body.auth.baseURL;
   const workbookUserName = await req.body.auth.workbookUserName;
   const workbookPassword = await req.body.auth.workbookPassword;
-  const credentials = workbookUserName + ":" + workbookPassword;
-  const encoded = Buffer.from(credentials).toString("base64");
+  const credentials = workbookUserName + ':' + workbookPassword;
+  const encoded = Buffer.from(credentials).toString('base64');
   const headers = {
     headers: {
       Authorization: `Basic ${encoded}`,
-      Accept: "application/json",
-      "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Origin": "*",
-      "X-Requested-With": "application/json"
+      Accept: 'application/json',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Origin': '*',
+      'X-Requested-With': 'application/json'
     }
   };
 
@@ -22,10 +22,10 @@ module.exports = async function(context, req) {
       {
         headers: {
           Authorization: `Basic ${encoded}`,
-          Accept: "application/json",
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Allow-Origin": "gzip*",
-          "X-Requested-With": "application/json"
+          Accept: 'application/json',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Origin': 'gzip*',
+          'X-Requested-With': 'application/json'
         }
       }
     );
@@ -33,16 +33,18 @@ module.exports = async function(context, req) {
     if (res.data.length === 0) {
       context.res = {
         status: 200,
-        body: "none"
+        body: 'none'
       };
     }
 
     let parentPurchases = await res.data.filter(i => i.Status === 40);
 
+    console.log('parents ' + parentPurchases);
+
     if (parentPurchases.length === 0) {
       context.res = {
         status: 200,
-        body: "none"
+        body: 'none'
       };
     }
 
@@ -56,10 +58,10 @@ module.exports = async function(context, req) {
         {
           headers: {
             Authorization: `Basic ${encoded}`,
-            Accept: "application/json",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Origin": "gzip",
-            "X-Requested-With": "application/json"
+            Accept: 'application/json',
+            'Access-Control-Allow-Credentials': 'true',
+            'Access-Control-Allow-Origin': 'gzip',
+            'X-Requested-With': 'application/json'
           }
         }
       );
@@ -87,7 +89,7 @@ module.exports = async function(context, req) {
     const purchAndSupp = joinSuppliers
       .filter(item => item.Status === 40)
       .map(item => {
-        let DeliveryDate = "";
+        let DeliveryDate = '';
         if (item.DeliveryDate === undefined || item.DeliveryDate === null) {
           DeliveryDate = addDays(Date.now(), 30);
         } else {
@@ -100,8 +102,8 @@ module.exports = async function(context, req) {
           DeliveryDate: DeliveryDate,
           Reference: item.Title,
           Contact: { ContactID: item.externalCode },
-          Status: "DRAFT",
-          LineAmountTypes: "Exclusive",
+          Status: 'DRAFT',
+          LineAmountTypes: 'Exclusive',
           LineItems: [],
           Id: item.Id
         };
@@ -117,10 +119,10 @@ module.exports = async function(context, req) {
       {
         headers: {
           Authorization: `Basic ${encoded}`,
-          Accept: "application/json",
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Allow-Origin": "gzip",
-          "X-Requested-With": "application/json"
+          Accept: 'application/json',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Origin': 'gzip',
+          'X-Requested-With': 'application/json'
         }
       }
     );
@@ -142,10 +144,10 @@ module.exports = async function(context, req) {
         {
           headers: {
             Authorization: `Basic ${encoded}`,
-            Accept: "application/json",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Origin": "gzip",
-            "X-Requested-With": "application/json"
+            Accept: 'application/json',
+            'Access-Control-Allow-Credentials': 'true',
+            'Access-Control-Allow-Origin': 'gzip',
+            'X-Requested-With': 'application/json'
           }
         }
       );
@@ -215,7 +217,7 @@ module.exports = async function(context, req) {
     });
     purchaseMapXero = purchaseLinesJoined.map(i => {
       if (i.Subject === undefined) {
-        i.Subject = "N/A";
+        i.Subject = 'N/A';
       }
       return {
         Id: i.Id,
@@ -227,15 +229,19 @@ module.exports = async function(context, req) {
       };
     });
 
-    const purchasesToPostJoin = purchases.map(purchase => {
+    const purchasesToPost = purchases.map(purchase => {
       purchase.LineItems = purchaseMapXero.filter(
         line => line.PurchaseId === purchase.PurchaseOrderNumber
       );
       return purchase;
     });
-    let purchasesToPost = purchasesToPostJoin.filter(
-      po => po.Contact.ContactID !== undefined
-    );
+    // let purchasesToPost = purchasesToPostJoin.filter(
+    //   po => po.Contact.ContactID !== undefined
+    // );
+
+    console.log('Did I get here?');
+
+    console.log(JSON.stringify(purchasesToPost));
 
     // Return data once processed
     context.res = {
@@ -247,7 +253,7 @@ module.exports = async function(context, req) {
     context.log(e);
     context.res = {
       status: 200,
-      body: "9"
+      body: '9'
     };
   }
 };

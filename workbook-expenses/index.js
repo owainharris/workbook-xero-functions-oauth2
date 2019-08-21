@@ -35,7 +35,7 @@ module.exports = async function(context, req) {
     let creditorInvoices = await creditors.data
 
       // FILTER FOR: STAUS=40 (PROCESSED), TYPE=1(CREDITOR INVOICE)
-      .filter(i => i.VoucherStatusId === 40 && i.VoucherType === 1)
+      .filter(i => i.VoucherStatusId === 50 && i.VoucherType === 1)
       .map(i => {
         if (i.Comment === undefined) {
           i.Comment = "";
