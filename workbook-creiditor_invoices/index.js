@@ -1,19 +1,19 @@
-const axios = require("axios");
+const axios = require('axios');
 
 module.exports = async function(context, req) {
   // GET AUTHENTICATION DETAILS FROM USER POST
   const baseURL = await req.body.auth.baseURL;
   const workbookUserName = await req.body.auth.workbookUserName;
   const workbookPassword = await req.body.auth.workbookPassword;
-  const credentials = workbookUserName + ":" + workbookPassword;
-  const encoded = Buffer.from(credentials).toString("base64");
+  const credentials = workbookUserName + ':' + workbookPassword;
+  const encoded = Buffer.from(credentials).toString('base64');
   const headers = {
     headers: {
       Authorization: `Basic ${encoded}`,
-      Accept: "application/json",
-      "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Origin": "*",
-      "X-Requested-With": "application/json"
+      Accept: 'application/json',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Origin': '*',
+      'X-Requested-With': 'application/json'
     }
   };
 
@@ -28,7 +28,7 @@ module.exports = async function(context, req) {
     if (creditors.data.length === 0) {
       context.res = {
         status: 200,
-        body: "none"
+        body: 'none'
       };
     }
 
@@ -38,19 +38,19 @@ module.exports = async function(context, req) {
       .filter(i => i.VoucherStatusId === 40 && i.VoucherType !== 1)
       .map(i => {
         if (i.Comment === undefined) {
-          i.Comment = "";
+          i.Comment = '';
         }
         // RETURN DATA IN FORMAT WE WILL SEND BACK TO THE CLIENT AND THEN TO XERO
         return {
-          Type: "ACCPAY",
+          Type: 'ACCPAY',
           Total: i.TotalAmount,
           VendorId: i.VendorId,
           Date: i.InvoiceDate,
           InvoiceDueDate: i.InvoiceDueDate,
-          LineAmountTypes: "Exclusive",
+          LineAmountTypes: 'Exclusive',
           Reference: i.Comment,
           CurrencyId: i.CurrencyId,
-          Status: "DRAFT",
+          Status: 'DRAFT',
           LineItems: {},
           CreditorInvoiceId: i.Id,
           InvoiceNumber: i.InvoiceNumber,
@@ -215,7 +215,7 @@ module.exports = async function(context, req) {
     // NOW WE CAN FINALIZE THE ABOVE INTO THE FORMAT WE NEED
     let creditorInvoicesFormatted = mappedVevdors.map(i => {
       return {
-        Type: "ACCPAY",
+        Type: 'ACCPAY',
         Contact: {
           Name: i.Name
         },
@@ -224,7 +224,7 @@ module.exports = async function(context, req) {
         Reference: i.Reference,
         Total: i.Total,
         CurrencyCode: i.IsoCode,
-        LineAmountTypes: "Exclusive",
+        LineAmountTypes: 'Exclusive',
         LineItems: i.LineItems,
         InvoiceNumber: i.InvoiceNumber,
         Id: i.CreditorInvoiceId
@@ -239,7 +239,7 @@ module.exports = async function(context, req) {
     console.log(e);
     context.res = {
       status: 200,
-      body: "9"
+      body: '9'
     };
   }
 };
