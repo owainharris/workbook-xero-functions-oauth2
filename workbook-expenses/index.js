@@ -105,6 +105,25 @@ module.exports = async function(context, req) {
       };
     });
 
+    // NEXT WE CAN OBTAIN OUR CURRENCY DATA
+    const costAccountsResponse = await axios.get(
+      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/accounts?IncludeActive=false`,
+      headers
+    );
+    let costAccounts = await costAccountsResponse.data
+      .map(i => {
+        return {
+          costAccountId: i.Id,
+          costAllowVendorInvoice: i.AllowVendorInvoice,
+          costAccountNumber: i.AccountNumber
+        };
+      })
+      .filter(result => {
+        return result.costAllowVendorInvoice === true;
+      });
+
+    context.log('activitiecostAccountssResults' + JSON.stringify(costAccounts));
+
     // GET ACTIVITIES
     const getActivities = await axios.get(
       `https://immense-shore-64867.herokuapp.com/${baseURL}/api/core/activities/company`,
@@ -133,21 +152,45 @@ module.exports = async function(context, req) {
     const revenueAccounts = await Promise.all(revenueAccountsArr);
 
     // NOW WE NEED TO MERGE ACTIVITIES WITH REVENUE ACCOUNTS
-    let mergedRevenue = activitiesResults.map(item1 => {
+    let mergedRevenue = activitiesResults
+      .map(item1 => {
+        return Object.assign(
+          item1,
+          revenueAccounts.find(item2 => {
+            return item2 && item1.RevenueAccountId === item2.Id;
+          })
+        );
+      })
+      .filter(result => {
+        return result.AccountNumber !== undefined;
+      });
+
+    // context.log('mergedRevenue' + JSON.stringify(mergedRevenue));
+
+    // NOW WE NEED TO MERGE ACTIVITIES WITH COST ACCOUNTS
+    let mergedCost = mergedRevenue.map(item1 => {
       return Object.assign(
         item1,
-        revenueAccounts.find(item2 => {
-          return item2 && item1.RevenueAccountId === item2.Id;
+        costAccounts.find(item2 => {
+          return item2 && item1.ChargeableJobAccountId === item2.costAccountId;
         })
       );
     });
 
+    // context.log('mergedCost' + JSON.stringify(mergedCost));
+
     // NOW LETS ONLY RETURN THE FIELDS WE NEED FROM THE ARRAY
-    const mappedActRev = mergedRevenue
+    const mappedActRev = mergedCost
       .map(item => {
+        let account;
+        if (item.costAccountNumber !== undefined) {
+          account = item.costAccountNumber;
+        } else {
+          account = item.AccountNumber;
+        }
         return {
           ActivityId: item.ActivityId,
-          AccountNumber: item.AccountNumber
+          AccountNumber: account
         };
       })
       // WE NEED TO STRIP OUT ANY REDUNDANT ACTIVITES

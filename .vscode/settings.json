@@ -7,5 +7,20 @@
     "obj": true,
     "bin": true
   },
-  "debug.internalConsoleOptions": "neverOpen"
+  "debug.internalConsoleOptions": "neverOpen",
+  "workbench.colorCustomizations": {
+    "activityBar.background": "#7ccdb5",
+    "activityBar.foreground": "#15202b",
+    "activityBar.inactiveForeground": "#15202b99",
+    "activityBarBadge.background": "#a45ec1",
+    "activityBarBadge.foreground": "#e7e7e7",
+    "titleBar.activeBackground": "#57bfa0",
+    "titleBar.inactiveBackground": "#57bfa099",
+    "titleBar.activeForeground": "#15202b",
+    "titleBar.inactiveForeground": "#15202b99",
+    "statusBar.background": "#57bfa0",
+    "statusBarItem.hoverBackground": "#3fa486",
+    "statusBar.foreground": "#15202b"
+  },
+  "peacock.color": "#57bfa0"
 }

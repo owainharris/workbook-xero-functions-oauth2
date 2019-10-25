@@ -4,6 +4,11 @@ module.exports = async function(context, req) {
   const baseURL = await req.body.auth.baseURL;
   const workbookUserName = await req.body.auth.workbookUserName;
   const workbookPassword = await req.body.auth.workbookPassword;
+  const companyID = await req.body.auth.companyID;
+  if (companyID == undefined) {
+    companyID = '';
+  }
+  context.log(req.body);
   const credentials = workbookUserName + ':' + workbookPassword;
   const encoded = Buffer.from(credentials).toString('base64');
   const headers = {
@@ -16,28 +21,53 @@ module.exports = async function(context, req) {
     }
   };
 
+  const postPayload = {
+    scope: 2,
+    CompanyId: `${companyID}`
+  };
+
   //GET INVOICE PARENTS
   try {
-    const response = await axios.get(
-      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/followup/job/invoices/visualization/readyforprint`,
-      headers
-    );
+    context.log('trying');
+    const invoices = await axios({
+      method: 'post',
+      url: `${baseURL}/api/json/reply/DebtorInvoiceManagementFilterRequest`,
+      data: postPayload,
+      headers: {
+        Authorization: `Basic ${encoded}`,
+        Accept: 'application/json'
+      }
+    });
 
-    if (response.data.length === 0) {
+    if (invoices.data.length === 0) {
       context.res = {
         status: 200,
         body: 'none'
       };
     }
 
-    let invoices = response.data.map(i => {
+    context.log('invoices ' + invoices.data);
+
+    const invoiceDetialsArr = invoices.data.map(async invoice_ids => {
+      const response = await axios.get(
+        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/debtor/invoicemanagement/${invoice_ids}`,
+        headers
+      );
+      return response.data;
+    });
+    const individualInvoices = await Promise.all(invoiceDetialsArr);
+
+    context.log('individualInvoices ' + individualInvoices);
+
+    let invoiceStruct = individualInvoices.map(i => {
       return {
         Type: 'ACCREC',
-        Total: i.TotalCurrencyAmount,
+        Total: i.AmountTotalCurrency,
         Contact: {
           Name: i.CustomerName
         },
         Date: i.InvoiceDate,
+        DueDate: i.InvoiceDueDate,
         LineAmountTypes: 'Exclusive',
         Reference: i.JobName,
         CurrencyCode: i.CurrencyCode,
@@ -46,37 +76,6 @@ module.exports = async function(context, req) {
         Id: i.Id,
         InvoiceNumber: i.InvoiceNumber
       };
-    });
-
-    let invoice_ids = invoices.map(invoice_ids => invoice_ids.Id);
-    const invoiceDetialsArr = invoice_ids.map(async invoice_ids => {
-      const response = await axios.get(
-        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/invoice/${invoice_ids}`,
-        headers
-      );
-      return response.data;
-    });
-    const individualInvoices = await Promise.all(invoiceDetialsArr);
-
-    const mappedDueDates = individualInvoices.map(item => {
-      let dueDate = '';
-      if (item.DueDate === undefined || item.DueDate === null) {
-        dueDate = addDays(Date.now(), 30);
-      } else {
-        dueDate = item.DueDate;
-      }
-      return {
-        Id: item.Id,
-        DueDate: dueDate
-      };
-    });
-    let final = invoices.map(item1 => {
-      return Object.assign(
-        item1,
-        mappedDueDates.find(item2 => {
-          return item2 && item1.Id === item2.Id;
-        })
-      );
     });
 
     // GET REVENUE
@@ -128,9 +127,9 @@ module.exports = async function(context, req) {
     let revenue = mappedActRev;
 
     // IF invoices returned a non empty array, continue
-    let ids = invoices.map(ids => ids.Id);
+    // let ids = invoices.map(ids => ids.Id);
 
-    const invoiceDetailsArr = ids.map(async ids => {
+    const invoiceDetailsArr = invoices.data.map(async ids => {
       const response = await axios.get(
         `https://immense-shore-64867.herokuapp.com/${baseURL}/api/invoice/${ids}/lines`,
         headers
@@ -175,7 +174,7 @@ module.exports = async function(context, req) {
       };
     });
 
-    const invoicesMappedToDetails = invoices.map(invoice => {
+    const invoicesMappedToDetails = invoiceStruct.map(invoice => {
       invoice.LineItems = detailsJoined.filter(
         line => line.InvoiceId === invoice.Id
       );
