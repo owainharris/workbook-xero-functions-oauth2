@@ -1,13 +1,40 @@
-const axios = require('axios');
+// IMPORT OUR REQUESTS WHEN REQUIRED
+const invIds = require('./invoiceIds');
+const act = require('./activities');
+const invDetails = require('./invoiceDetails');
+const invLines = require('./invoiceLines');
+const rev = require('./revenue');
 
 module.exports = async function(context, req) {
-  const baseURL = await req.body.auth.baseURL;
-  const workbookUserName = await req.body.auth.workbookUserName;
-  const workbookPassword = await req.body.auth.workbookPassword;
+  // DEFINE REQUEST AUTH PARAMS
+  let {
+    baseURL,
+    workbookUserName,
+    workbookPassword,
+    companyID
+  } = req.body.auth;
+
+  // REMOVE TRAILING '/' AS SOME CLIENTS INCLUDE THIS
+  baseURL = baseURL.replace(/\/$/, '');
+  context.log(baseURL);
+
+  /* SOME CLIENTS DONT HAVE MULTI COMPANY.
+  IF NOT, A BLANK COMPANY ID WILL JUST RETURL ALL */
+  if (companyID == undefined) {
+    companyID = '';
+  }
+
+  // ENCRYPT CREDENTIALS
   const credentials = workbookUserName + ':' + workbookPassword;
   const encoded = Buffer.from(credentials).toString('base64');
-  const headers = {
-    headers: {
+
+  // POST REQUEST DOESN'T REQUIRE CORS, SO WE USE DIFFERENT HEADERS FOR GET AND POST
+  const auth = {
+    post_headers: {
+      Authorization: `Basic ${encoded}`,
+      Accept: 'application/json'
+    },
+    get_headers: {
       Authorization: `Basic ${encoded}`,
       Accept: 'application/json',
       'Access-Control-Allow-Credentials': 'true',
@@ -16,145 +43,45 @@ module.exports = async function(context, req) {
     }
   };
 
-  //GET INVOICE PARENTS
-  try {
-    const response = await axios.get(
-      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/followup/job/invoices/visualization/readyforprint`,
-      headers
-    );
+  //DEFINE URL STRINGS
+  const connections = {
+    baseURL: `${baseURL}`,
+    invoiceIdsURL: `/api/json/reply/DebtorInvoiceManagementFilterRequest`,
+    activitiesURL: `/api/core/activities/company`
+  };
 
-    if (response.data.length === 0) {
+  //DEFINE PAYLOAD FOR INVOICE IDS. SCOPE=2 RETRIEVES READY TO INVOICE STATUS
+  const postPayload = {
+    scope: 2,
+    CompanyId: `${companyID}`
+  };
+
+  try {
+    /*
+    RETRIEVE BOTH INVOICE IDs AND ACTIVITY IDs. WE WILL NEED THESE
+    TO LOOP THROUGH MORE REQUESTS LATER.
+    IF NO INVOICE IDs EXIST, RETURN A 200 RESPONSE (OK) AND LET THE CLIENT KNOW
+    THERE ARE NO INVOICES, AND NOT TO CONTINUE WITH THE REST OF THE API CALLS.
+    */
+    const invoices = await invIds(connections, postPayload, auth);
+    if (invoices.data.length === 0) {
       context.res = {
         status: 200,
         body: 'none'
       };
     }
+    const activities = await act(connections, auth);
 
-    let invoices = response.data.map(i => {
-      return {
-        Type: 'ACCREC',
-        Total: i.TotalCurrencyAmount,
-        Contact: {
-          Name: i.CustomerName
-        },
-        Date: i.InvoiceDate,
-        LineAmountTypes: 'Exclusive',
-        Reference: i.JobName,
-        CurrencyCode: i.CurrencyCode,
-        Status: 'DRAFT',
-        LineItems: {},
-        Id: i.Id,
-        InvoiceNumber: i.InvoiceNumber
-      };
-    });
+    /* NOW THAT WE HAVE OUR IDs, WE CAN LOOP THROUGH THE OTHER REQUESTS */
+    const [invoiceDetails, invoiceLines, revenue] = await Promise.all([
+      invDetails(connections, auth, invoices),
+      invLines(connections, auth, invoices),
+      rev(connections, auth, activities)
+    ]);
 
-    let invoice_ids = invoices.map(invoice_ids => invoice_ids.Id);
-    const invoiceDetialsArr = invoice_ids.map(async invoice_ids => {
-      const response = await axios.get(
-        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/invoice/${invoice_ids}`,
-        headers
-      );
-      return response.data;
-    });
-    const individualInvoices = await Promise.all(invoiceDetialsArr);
-
-    const mappedDueDates = individualInvoices.map(item => {
-      let dueDate = '';
-      if (item.DueDate === undefined || item.DueDate === null) {
-        dueDate = addDays(Date.now(), 30);
-      } else {
-        dueDate = item.DueDate;
-      }
-      return {
-        Id: item.Id,
-        DueDate: dueDate
-      };
-    });
-    let final = invoices.map(item1 => {
-      return Object.assign(
-        item1,
-        mappedDueDates.find(item2 => {
-          return item2 && item1.Id === item2.Id;
-        })
-      );
-    });
-
-    // GET REVENUE
-    const getActivities = await axios.get(
-      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/core/activities/company`,
-      headers
-    );
-    let activitiesResults = await getActivities.data;
-
-    let revenueIds = activitiesResults
-      .filter(result => {
-        return result.RevenueAccountId !== undefined;
-      })
-      .map(result => {
-        return result.RevenueAccountId;
-      });
-
-    const uniqueRevenueIds = [...new Set(revenueIds)];
-
-    const revenueAccountsArr = uniqueRevenueIds.map(async ids => {
-      const response = await axios.get(
-        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/account/${ids}`,
-        headers
-      );
-      return response.data;
-    });
-    const revenueAccounts = await Promise.all(revenueAccountsArr);
-
-    let flattenedRevenue = activitiesResults.map(item1 => {
-      return Object.assign(
-        item1,
-        revenueAccounts.find(item2 => {
-          return item2 && item1.RevenueAccountId === item2.Id;
-        })
-      );
-    });
-
-    const mappedActRev = flattenedRevenue
-      .map(item => {
-        return {
-          ActivityId: item.ActivityId,
-          AccountNumber: item.AccountNumber
-        };
-      })
-      .filter(item => {
-        return item.AccountNumber !== undefined;
-      });
-
-    let revenue = mappedActRev;
-
-    // IF invoices returned a non empty array, continue
-    let ids = invoices.map(ids => ids.Id);
-
-    const invoiceDetailsArr = ids.map(async ids => {
-      const response = await axios.get(
-        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/invoice/${ids}/lines`,
-        headers
-      );
-
-      return response.data;
-    });
-    const invoiceDetailsResponse = await Promise.all(invoiceDetailsArr);
-
-    const flattenedinvoiceDetails = [].concat(...invoiceDetailsResponse);
-
-    let invoiceDetails = flattenedinvoiceDetails.map(i => {
-      return {
-        Id: i.Id,
-        InvoiceId: i.InvoiceId,
-        Description: i.Description,
-        Quantity: 1,
-        UnitAmount: i.AmountNetCurrency,
-        TaxAmount: i.AmountVATCurrency,
-        AccountCode: i.ActivityId
-      };
-    });
-
-    invoiceDetails.map(item1 => {
+    /* NOW WE HAVE ALL OUR DATA, WE NEED TO MERGE ACTIVITES
+    INTO THE SAME OBJECT AS OUR REVENUE. */
+    invoiceLines.map(item1 => {
       return Object.assign(
         item1,
         revenue.find(item2 => {
@@ -163,32 +90,24 @@ module.exports = async function(context, req) {
       );
     });
 
-    const detailsJoined = invoiceDetails.map(i => {
-      return {
-        Id: i.Id,
-        InvoiceId: i.InvoiceId,
-        Description: i.Description,
-        Quantity: 1,
-        UnitAmount: i.UnitAmount,
-        TaxAmount: i.TaxAmount,
-        AccountCode: i.AccountNumber
-      };
-    });
-
-    const invoicesMappedToDetails = invoices.map(invoice => {
-      invoice.LineItems = detailsJoined.filter(
+    /* NOW WE HAVE ALL OUR DATA, WE NEED TO MERGE OUR INVOICE
+    LINE ITEMS INTO THE INVOICE THEY BELONG TO BY THE INVOICE ID. */
+    invoiceDetails.map(invoice => {
+      invoice.LineItems = invoiceLines.filter(
         line => line.InvoiceId === invoice.Id
       );
       return invoice;
     });
-    // context.log(invoicesMappedToDetails);
-    // return res.send(invoicesMappedToDetails);
 
-    context.log(JSON.stringify(invoicesMappedToDetails));
+    /* IF NO ERRORS, RETURN HTTP 200 WITH PAYLOAD TO CLIENT */
     context.res = {
       status: 200,
-      body: invoicesMappedToDetails
+      body: invoiceDetails
     };
+
+    /* IF THERE WAS AN ERROR, RETURN ERROR CODE 9 TO THE CLIENT.
+        THIS TELLS THE CLIENT IN THE APPLICATION TO CHECK THEIR WB CONNECTION SETTINGS
+       */
   } catch (e) {
     context.res = {
       status: 200,
