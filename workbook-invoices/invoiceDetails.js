@@ -26,7 +26,7 @@ module.exports = async function(connections, auth, invoices) {
         Date: i.InvoiceDate,
         DueDate: i.InvoiceDueDate,
         LineAmountTypes: 'Exclusive',
-        Reference: i.JobName,
+        Reference: 'Id: ' + i.Id + ', ' + 'Job: ' + i.JobName,
         CurrencyCode: i.CurrencyCode,
         Status: 'DRAFT',
         LineItems: {},

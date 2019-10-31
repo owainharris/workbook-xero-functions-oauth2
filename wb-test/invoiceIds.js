@@ -1,10 +1,6 @@
 const axios = require('axios');
 
 module.exports = async function(connections, postPayload, auth) {
-  console.log(connections.baseURL);
-  console.log(connections.invoiceIdsURL);
-  console.log(auth.post_headers);
-
   try {
     const invoices = await axios({
       method: 'post',

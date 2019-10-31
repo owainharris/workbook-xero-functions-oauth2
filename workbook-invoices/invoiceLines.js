@@ -24,7 +24,7 @@ module.exports = async function(connections, auth, invoices) {
         Quantity: 1,
         UnitAmount: i.AmountNetCurrency,
         TaxAmount: i.AmountVATCurrency,
-        AccountCode: i.ActivityId
+        ActivityId: i.ActivityId
       };
     });
 

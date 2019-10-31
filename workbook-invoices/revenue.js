@@ -2,7 +2,7 @@ const axios = require('axios');
 
 module.exports = async function(connections, auth, activities) {
   try {
-    activityIds = activities.map(i => i.Id);
+    activityIds = activities.map(i => i.RevenueAccountId);
     const revenueAccountsArr = await activityIds.map(async id => {
       const revenueURL = `api/finance/account/${id}`;
       const res = await axios.get(
@@ -15,6 +15,7 @@ module.exports = async function(connections, auth, activities) {
       return res.data;
     });
     const revenueAccounts = await Promise.all(revenueAccountsArr);
+
     let flattenedRevenue = activities.map(item1 => {
       return Object.assign(
         item1,
@@ -24,16 +25,20 @@ module.exports = async function(connections, auth, activities) {
       );
     });
 
+    console.log('flattenedRevenue ' + JSON.stringify(flattenedRevenue));
+
     const mappedActRev = flattenedRevenue
       .map(item => {
         return {
           ActivityId: item.ActivityId,
-          AccountNumber: item.AccountNumber
+          AccountCode: item.AccountNumber
         };
       })
       .filter(item => {
-        return item.AccountNumber !== undefined;
+        return item.AccountCode !== undefined;
       });
+
+    console.log('mappedActRev ' + JSON.stringify(mappedActRev));
 
     let revenue = mappedActRev;
 

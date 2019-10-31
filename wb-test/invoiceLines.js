@@ -7,6 +7,7 @@ module.exports = async function(connections, auth, invoices) {
       const res = await axios.get(
         `https://immense-shore-64867.herokuapp.com/` +
           `${connections.baseURL}` +
+          '/' +
           `${invoiceLinesURL}`,
         { headers: auth.get_headers }
       );

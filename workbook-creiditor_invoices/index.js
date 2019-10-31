@@ -30,12 +30,11 @@ module.exports = async function(context, req) {
 
   try {
     // GET CREDITOR INVOICE PARENTS
-    context.log('trying');
+
     const creditors = await axios.get(
       `${baseURL}api/finance/01/vouchers`,
       headers2
     );
-    context.log('done');
 
     // IF THERE ARE NO CREDITOR INVOICES, STOP THE FUNCTION HERE AND RETURN
     if (creditors.data.length === 0) {
@@ -44,8 +43,6 @@ module.exports = async function(context, req) {
         body: 'none'
       };
     }
-
-    context.log(creditors);
 
     let creditorInvoices = await creditors.data
 
@@ -120,7 +117,7 @@ module.exports = async function(context, req) {
       };
     });
 
-    // NEXT WE CAN OBTAIN OUR CURRENCY DATA
+    // NEXT WE CAN OBTAIN OUR COST ACCOUNT DATA
     const costAccountsResponse = await axios.get(
       `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/accounts?IncludeActive=false`,
       headers
@@ -136,8 +133,6 @@ module.exports = async function(context, req) {
       .filter(result => {
         return result.costAllowVendorInvoice === true;
       });
-
-    context.log('activitiecostAccountssResults' + JSON.stringify(costAccounts));
 
     // GET ACTIVITIES
     const getActivities = await axios.get(
@@ -180,22 +175,33 @@ module.exports = async function(context, req) {
         return result.AccountNumber !== undefined;
       });
 
-    // context.log('mergedRevenue' + JSON.stringify(mergedRevenue));
-
     // NOW WE NEED TO MERGE ACTIVITIES WITH COST ACCOUNTS
-    let mergedCost = mergedRevenue.map(item1 => {
+    let mergedChargeableCost = mergedRevenue.map(item1 => {
       return Object.assign(
         item1,
         costAccounts.find(item2 => {
-          return item2 && item1.ChargeableJobAccountId === item2.costAccountId;
+          return (
+            (item2 && item1.ChargeableJobAccountId === item2.costAccountId) ||
+            item1.NonChargeableJobAccountId === item2.costAccountId
+          );
         })
       );
     });
+    // let mergedNonChargeableCost = mergedChargeableCost.map(item1 => {
+    //   return Object.assign(
+    //     item1,
+    //     costAccounts.find(item2 => {
+    //       return (
+    //         item2 && item1.NonChargeableJobAccountId === item2.costAccountId
+    //       );
+    //     })
+    //   );
+    // });
 
     // context.log('mergedCost' + JSON.stringify(mergedCost));
 
     // NOW LETS ONLY RETURN THE FIELDS WE NEED FROM THE ARRAY
-    const mappedActRev = mergedCost
+    const mappedActRev = mergedChargeableCost
       .map(item => {
         let account;
         if (item.costAccountNumber !== undefined) {

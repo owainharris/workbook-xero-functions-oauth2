@@ -1,5 +1,5 @@
-const xeroConfig = require("./keys").xeroConfig;
-const XeroClient = require("xero-node").AccountingAPIClient;
+const xeroConfig = require('./keys').xeroConfig;
+const XeroClient = require('xero-node').AccountingAPIClient;
 module.exports = async function(context, req) {
   const oauth_token = req.body.authToken;
   delete req.body.authToken;
@@ -14,6 +14,8 @@ module.exports = async function(context, req) {
 
   // Send request data to the Xero invoices API and wait for a response
   try {
+    context.log(req.body);
+
     let result = await xero.invoices.create(req.body);
     // Check and filter for returned response errors or warnings for each invoice
     let issues = await result.Invoices.map(e => {

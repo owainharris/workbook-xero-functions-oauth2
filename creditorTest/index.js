@@ -2,7 +2,7 @@ const axios = require('axios');
 
 module.exports = async function(context, req) {
   // GET AUTHENTICATION DETAILS FROM USER POST
-  const baseURL = await req.body.auth.baseURL;
+  let baseURL = await req.body.auth.baseURL;
   const workbookUserName = await req.body.auth.workbookUserName;
   const workbookPassword = await req.body.auth.workbookPassword;
   let companyID = await req.body.auth.companyID;
@@ -28,14 +28,16 @@ module.exports = async function(context, req) {
     }
   };
 
+  // REMOVE TRAILING '/' AS SOME CLIENTS INCLUDE THIS
+  baseURL = baseURL.replace(/\/$/, '');
+
   try {
     // GET CREDITOR INVOICE PARENTS
-    context.log('trying');
+
     const creditors = await axios.get(
-      `${baseURL}api/finance/01/vouchers`,
+      `${baseURL}/api/finance/01/vouchers`,
       headers2
     );
-    context.log('done');
 
     // IF THERE ARE NO CREDITOR INVOICES, STOP THE FUNCTION HERE AND RETURN
     if (creditors.data.length === 0) {
@@ -44,8 +46,6 @@ module.exports = async function(context, req) {
         body: 'none'
       };
     }
-
-    context.log(creditors);
 
     let creditorInvoices = await creditors.data
 
@@ -120,25 +120,6 @@ module.exports = async function(context, req) {
       };
     });
 
-    // NEXT WE CAN OBTAIN OUR CURRENCY DATA
-    const costAccountsResponse = await axios.get(
-      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/accounts?IncludeActive=false`,
-      headers
-    );
-    let costAccounts = await costAccountsResponse.data
-      .map(i => {
-        return {
-          costAccountId: i.Id,
-          costAllowVendorInvoice: i.AllowVendorInvoice,
-          costAccountNumber: i.AccountNumber
-        };
-      })
-      .filter(result => {
-        return result.costAllowVendorInvoice === true;
-      });
-
-    context.log('activitiecostAccountssResults' + JSON.stringify(costAccounts));
-
     // GET ACTIVITIES
     const getActivities = await axios.get(
       `https://immense-shore-64867.herokuapp.com/${baseURL}/api/core/activities/company`,
@@ -146,17 +127,37 @@ module.exports = async function(context, req) {
     );
     let activitiesResults = await getActivities.data;
 
-    // EXTRACT A NEW ARRAY TO GET REVENUE ACCOUNT IDs. WE WILL NEED THIS TO MERGE ACTIVIES WITH REVENUE CODES
+    context.log('activitiesResults ' + JSON.stringify(activitiesResults));
+
+    /*******************************************************************/
+    // EXTRACT A NEW ARRAY TO GET REVENUE AND COST ACCOUNT IDs. WE WILL NEED THIS TO MERGE ACTIVIES WITH REVENUE CODES
+
     let revenueIds = activitiesResults
-      .filter(result => {
-        return result.RevenueAccountId !== undefined;
-      })
-      .map(result => {
-        return result.RevenueAccountId;
-      });
+      .map(i => i.RevenueAccountId)
+      .filter(Boolean);
     const uniqueRevenueIds = [...new Set(revenueIds)];
 
+    context.log('uniqueRevenueIds ' + JSON.stringify(uniqueRevenueIds));
+
+    let chargeableIds = activitiesResults
+      .map(i => i.ChargeableJobAccountId)
+      .filter(Boolean);
+    const uniqueChargeableIds = [...new Set(chargeableIds)];
+
+    context.log('chargeableIds ' + JSON.stringify(chargeableIds));
+
+    let nonChargeableIds = activitiesResults
+      .map(i => i.NonChargeableJobAccountId)
+      .filter(Boolean);
+    const uniqueNonChargeableIds = [...new Set(nonChargeableIds)];
+
+    context.log('nonChargeableIds ' + JSON.stringify(nonChargeableIds));
+
+    /****************************************************************/
+
+    /****************************************************************/
     // USE THE UNIQUE IDS ABOVE TO LOOP THROUGH AND GET REQUIRED REVENUE DATA
+    // GET REVENUE
     const revenueAccountsArr = uniqueRevenueIds.map(async ids => {
       const response = await axios.get(
         `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/account/${ids}`,
@@ -165,53 +166,107 @@ module.exports = async function(context, req) {
       return response.data;
     });
     const revenueAccounts = await Promise.all(revenueAccountsArr);
+    const revenueAccountsMapped = revenueAccounts.map(i => {
+      return {
+        Id: i.Id,
+        RevAccountNumber: i.AccountNumber
+      };
+    });
 
+    context.log(
+      'revenueAccountsMapped ' + JSON.stringify(revenueAccountsMapped)
+    );
+
+    // GET CHARGEABLE
+    const chargeableAccountsArr = uniqueChargeableIds.map(async ids => {
+      const response = await axios.get(
+        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/account/${ids}`,
+        headers
+      );
+      return response.data;
+    });
+    const chargeableAccounts = await Promise.all(chargeableAccountsArr);
+    const chargeableAccountsMapped = chargeableAccounts.map(i => {
+      return {
+        Id: i.Id,
+        ChargeableAccountNumber: i.AccountNumber
+      };
+    });
+
+    context.log(
+      'chargeableAccountsMapped ' + JSON.stringify(chargeableAccountsMapped)
+    );
+
+    // GET NON CHARGEABLE
+    const nonChargeableAccountsArr = uniqueNonChargeableIds.map(async ids => {
+      const response = await axios.get(
+        `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/account/${ids}`,
+        headers
+      );
+      return response.data;
+    });
+    const nonChargeableAccounts = await Promise.all(nonChargeableAccountsArr);
+    const nonChargeableAccountsMapped = nonChargeableAccounts.map(i => {
+      return {
+        Id: i.Id,
+        NonChargeableAccountNumber: i.AccountNumber
+      };
+    });
+
+    context.log(
+      'nonChargeableAccountsMapped ' +
+        JSON.stringify(nonChargeableAccountsMapped)
+    );
+    /****************************************************************/
+
+    /****************************************************************/
     // NOW WE NEED TO MERGE ACTIVITIES WITH REVENUE ACCOUNTS
-    let mergedRevenue = activitiesResults
-      .map(item1 => {
-        return Object.assign(
-          item1,
-          revenueAccounts.find(item2 => {
-            return item2 && item1.RevenueAccountId === item2.Id;
-          })
-        );
-      })
-      .filter(result => {
-        return result.AccountNumber !== undefined;
-      });
-
-    // context.log('mergedRevenue' + JSON.stringify(mergedRevenue));
-
-    // NOW WE NEED TO MERGE ACTIVITIES WITH COST ACCOUNTS
-    let mergedCost = mergedRevenue.map(item1 => {
+    let costsMerged = activitiesResults.map(item1 => {
       return Object.assign(
         item1,
-        costAccounts.find(item2 => {
-          return item2 && item1.ChargeableJobAccountId === item2.costAccountId;
+        revenueAccountsMapped.find(item2 => {
+          return item2 && item1.RevenueAccountId === item2.Id;
+        }),
+        chargeableAccountsMapped.find(item2 => {
+          return item2 && item1.ChargeableJobAccountId === item2.Id;
+        }),
+        nonChargeableAccountsMapped.find(item2 => {
+          return item2 && item1.NonChargeableJobAccountId === item2.Id;
         })
       );
     });
 
-    // context.log('mergedCost' + JSON.stringify(mergedCost));
+    context.log('costsMerged ' + JSON.stringify(costsMerged));
+    /****************************************************************/
 
     // NOW LETS ONLY RETURN THE FIELDS WE NEED FROM THE ARRAY
-    const mappedActRev = mergedCost
-      .map(item => {
-        let account;
-        if (item.costAccountNumber !== undefined) {
-          account = item.costAccountNumber;
-        } else {
-          account = item.AccountNumber;
-        }
-        return {
-          ActivityId: item.ActivityId,
-          AccountNumber: account
-        };
-      })
-      // WE NEED TO STRIP OUT ANY REDUNDANT ACTIVITES
-      .filter(item => {
-        return item.AccountNumber !== undefined;
-      });
+    const mappedActRev = costsMerged.map(item => {
+      let account;
+      // if (item.costAccountNumber !== undefined) {
+      //   account = item.costAccountNumber;
+      // } else {
+      //   account = item.AccountNumber;
+      // }
+      if (item.RevAccountNumber) {
+        account = item.RevAccountNumber;
+      }
+      if (item.ChargeableAccountNumber) {
+        account = item.ChargeableAccountNumber;
+      }
+      if (item.NonChargeableAccountNumber) {
+        account = item.NonChargeableAccountNumber;
+      }
+
+      return {
+        ActivityId: item.ActivityId,
+        AccountNumber: account
+      };
+    });
+    // WE NEED TO STRIP OUT ANY REDUNDANT ACTIVITES
+    // .filter(item => {
+    //   return item.AccountNumber !== undefined;
+    // });
+    context.log('mappedActRev ' + JSON.stringify(mappedActRev));
 
     // NOW WE HAVE OUR REVENUE ARRAY
     let revenue = mappedActRev;

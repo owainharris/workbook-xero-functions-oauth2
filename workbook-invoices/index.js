@@ -79,13 +79,17 @@ module.exports = async function(context, req) {
       rev(connections, auth, activities)
     ]);
 
+    context.log('activities ' + JSON.stringify(activities));
+    context.log('revenue ' + JSON.stringify(revenue));
+    context.log('invoiceLines ' + JSON.stringify(invoiceLines));
+
     /* NOW WE HAVE ALL OUR DATA, WE NEED TO MERGE ACTIVITES
     INTO THE SAME OBJECT AS OUR REVENUE. */
     invoiceLines.map(item1 => {
       return Object.assign(
         item1,
         revenue.find(item2 => {
-          return item2 && item1.AccountCode === item2.ActivityId;
+          return item2 && item1.ActivityId === item2.ActivityId;
         })
       );
     });
