@@ -16,7 +16,7 @@ module.exports = async function(connections, auth, invoices) {
 
     const invoiceDetailsResponse = await Promise.all(invoiceDetailsArr);
 
-    // STRIP OUT CREDIT NOTES
+    // FILTER OUT CREDIT NOTES
     const filteredCreditNotes = invoiceDetailsResponse.filter(
       i => i.InvoiceType !== 2
     );
