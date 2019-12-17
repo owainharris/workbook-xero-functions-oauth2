@@ -1,9 +1,9 @@
 // IMPORT OUR REQUESTS WHEN REQUIRED
-const invIds = require('./invoiceIds');
-const act = require('./activities');
-const invDetails = require('./invoiceDetails');
-const invLines = require('./invoiceLines');
-const rev = require('./revenue');
+const invIds = require("./invoiceIds");
+const act = require("./activities");
+const invDetails = require("./invoiceDetails");
+const invLines = require("./invoiceLines");
+const rev = require("./revenue");
 
 module.exports = async function(context, req) {
   // DEFINE REQUEST AUTH PARAMS
@@ -15,31 +15,30 @@ module.exports = async function(context, req) {
   } = req.body.auth;
 
   // REMOVE TRAILING '/' AS SOME CLIENTS INCLUDE THIS
-  baseURL = baseURL.replace(/\/$/, '');
-  context.log(baseURL);
+  baseURL = baseURL.replace(/\/$/, "");
 
   /* SOME CLIENTS DONT HAVE MULTI COMPANY.
   IF NOT, A BLANK COMPANY ID WILL JUST RETURL ALL */
   if (companyID == undefined) {
-    companyID = '';
+    companyID = "";
   }
 
   // ENCRYPT CREDENTIALS
-  const credentials = workbookUserName + ':' + workbookPassword;
-  const encoded = Buffer.from(credentials).toString('base64');
+  const credentials = workbookUserName + ":" + workbookPassword;
+  const encoded = Buffer.from(credentials).toString("base64");
 
   // POST REQUEST DOESN'T REQUIRE CORS, SO WE USE DIFFERENT HEADERS FOR GET AND POST
   const auth = {
     post_headers: {
       Authorization: `Basic ${encoded}`,
-      Accept: 'application/json'
+      Accept: "application/json"
     },
     get_headers: {
       Authorization: `Basic ${encoded}`,
-      Accept: 'application/json',
-      'Access-Control-Allow-Credentials': 'true',
-      'Access-Control-Allow-Origin': '*',
-      'X-Requested-With': 'application/json'
+      Accept: "application/json",
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Origin": "*",
+      "X-Requested-With": "application/json"
     }
   };
 
@@ -67,8 +66,9 @@ module.exports = async function(context, req) {
     if (invoices.data.length === 0) {
       context.res = {
         status: 200,
-        body: 'none'
+        body: "none"
       };
+      context.done();
     }
     const activities = await act(connections, auth);
 
@@ -78,10 +78,6 @@ module.exports = async function(context, req) {
       invLines(connections, auth, invoices),
       rev(connections, auth, activities)
     ]);
-
-    context.log('activities ' + JSON.stringify(activities));
-    context.log('revenue ' + JSON.stringify(revenue));
-    context.log('invoiceLines ' + JSON.stringify(invoiceLines));
 
     /* NOW WE HAVE ALL OUR DATA, WE NEED TO MERGE ACTIVITES
     INTO THE SAME OBJECT AS OUR REVENUE. */
@@ -115,7 +111,7 @@ module.exports = async function(context, req) {
   } catch (e) {
     context.res = {
       status: 200,
-      body: '9'
+      body: "9"
     };
   }
 };

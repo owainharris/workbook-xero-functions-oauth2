@@ -45,6 +45,7 @@ module.exports = async function(context, req) {
         status: 200,
         body: 'none'
       };
+      context.done();
     }
 
     let creditorInvoices = await creditors.data
