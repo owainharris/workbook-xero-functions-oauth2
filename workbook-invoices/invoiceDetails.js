@@ -1,4 +1,4 @@
-const axios = require('axios');
+const axios = require("axios");
 
 module.exports = async function(connections, auth, invoices) {
   try {
@@ -7,7 +7,7 @@ module.exports = async function(connections, auth, invoices) {
       const res = await axios.get(
         `https://immense-shore-64867.herokuapp.com/` +
           `${connections.baseURL}` +
-          '/' +
+          "/" +
           `${invoiceDetailsURL}`,
         { headers: auth.get_headers }
       );
@@ -15,20 +15,26 @@ module.exports = async function(connections, auth, invoices) {
     });
 
     const invoiceDetailsResponse = await Promise.all(invoiceDetailsArr);
-    const flattenedinvoiceDetails = [].concat(...invoiceDetailsResponse);
+
+    // STRIP OUT CREDIT NOTES
+    const filteredCreditNotes = invoiceDetailsResponse.filter(
+      i => i.InvoiceType !== 2
+    );
+
+    const flattenedinvoiceDetails = [].concat(...filteredCreditNotes);
     let invoiceDetails = flattenedinvoiceDetails.map(i => {
       return {
-        Type: 'ACCREC',
+        Type: "ACCREC",
         Total: i.AmountTotalCurrency,
         Contact: {
           Name: i.CustomerName
         },
         Date: i.InvoiceDate,
         DueDate: i.InvoiceDueDate,
-        LineAmountTypes: 'Exclusive',
-        Reference: 'Id: ' + i.Id + ', ' + 'Job: ' + i.JobName,
+        LineAmountTypes: "Exclusive",
+        Reference: "Id: " + i.Id + ", " + "Job: " + i.JobName,
         CurrencyCode: i.CurrencyCode,
-        Status: 'DRAFT',
+        Status: "DRAFT",
         LineItems: {},
         Id: i.Id,
         InvoiceNumber: i.InvoiceNumber
