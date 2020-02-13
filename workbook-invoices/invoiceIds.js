@@ -1,9 +1,9 @@
-const axios = require('axios');
+const axios = require("axios");
 
 module.exports = async function(connections, postPayload, auth) {
   try {
     const invoices = await axios({
-      method: 'post',
+      method: "post",
       url: connections.baseURL + connections.invoiceIdsURL,
       data: postPayload,
       headers: auth.post_headers
