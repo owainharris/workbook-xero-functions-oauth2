@@ -1,9 +1,9 @@
-const axios = require('axios');
+const axios = require("axios");
 
 module.exports = async function(connections, auth) {
   try {
     const activities = await axios({
-      method: 'get',
+      method: "get",
       url:
         `https://immense-shore-64867.herokuapp.com/` +
         connections.baseURL +

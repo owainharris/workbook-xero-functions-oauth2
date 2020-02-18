@@ -21,25 +21,32 @@ module.exports = async function(context, req) {
     }
   };
   try {
-    // Connect to Xero
+    // CONNECT TO XERO USING THE IMPORTED SDK
     let xero = new XeroClient(xeroConfig, oauth_token);
 
-    context.log("xero1: " + JSON.stringify(xero));
+    context.log("xero " + xero);
 
     // Send request data to the Xero invoices API and wait for a response
+    const result = await xero.invoices.get({
+      Statuses: "PAID",
+      createdByMyApp: true
+    });
 
-    const result = await xero.invoices.get({ Statuses: "PAID" });
-
-    context.log("result: " + JSON.stringify(result));
+    context.log(JSON.stringify("result " + result));
 
     // GET PAID INVOICES IN XERO AND PUSH TO ARRAY
-    const filtered = result.Invoices.filter(i => i.Reference.includes("WBID:"))
+    // SELECT ONLY INVOICES THAT HAS A REFERENCE CONTAINING "WBID"
+    const filtered = result.Invoices.filter(i => i.Reference.includes("Id:"))
+      // CREATE A NEW ARRAY OF ONLY THE REFERENCE FIELD
       .map(i => i.Reference)
-      .map(s => s.replace("WBID:", ""))
+      // STRIP OUT THE "Id:" SO WE CAN UST OBTAIN AN ARRAY OF IDs TO SEND TO WORKBOOK
+      .map(s => s.replace("Id: ", ""))
+      .map(k => k.replace(/\,.*/, ""))
+      // BELOW IS ONLY TO FILTER OUT AN INVOICE WE USED IN TESTING. CAN DELETE THIS LINE LATER
       .filter(r => r !== "INV159");
 
-    context.log("FILTERED: " + JSON.stringify(filtered));
-
+    context.log(JSON.stringify("filtered " + filtered));
+    // IF NOTHING IS RETURNED, SEND BACK A 200 RESPONSE WITH a '401' CODE SO OUR APP CAN DISPLAY "NONE FOUND"
     if (filtered.length === 0) {
       context.res = {
         status: 200,
@@ -48,7 +55,7 @@ module.exports = async function(context, req) {
       context.done();
     }
 
-    // USE XERO INVOICES ARRAY TO LOOP IN WB
+    // ELSE, USE THE IDs WE FILTERED TO LOOP THROUGH THE WORKBOOK INVOICES API AND RETURN MATCHING INVOICES
     const WBInvoices = await filtered.map(async id => {
       const res = await axios.get(
         `https://immense-shore-64867.herokuapp.com/` +
@@ -65,7 +72,7 @@ module.exports = async function(context, req) {
     const invoicesResponse = await Promise.all(WBInvoices);
     const flattenedinvoices = [].concat(...invoicesResponse);
 
-    // FILTER OUT INVOICES THAT ARE ALREADY PAID IN WORKBOOK
+    // FILTER OUT INVOICES THAT ARE ALREADY PAID IN WORKBOOK *STATUS 70*
     const unpaid = flattenedinvoices.filter(
       i => i.PaymentStatusForSystemsWithoutFinance < 70
     );
@@ -80,12 +87,13 @@ module.exports = async function(context, req) {
       );
     });
 
-    // Send returned data from Xero including errors or warnings
+    // SEND MERGED DATA BACK TO OUR APP
     context.res = {
       status: 200,
       body: merged
     };
   } catch (e) {
+    // IF XERO OR WORKBOOK FAILS, SEND A 200 CODE TO OUR APP WITH A 500 RESPONSE IN THE BODY SO OUR APP CAN DISPLAY THAT SOMETHING WENT WRONG AND TO CHECK THE XERO/WB CONNECTION SETTINGS
     context.log(e);
     context.res = {
       status: 200,
