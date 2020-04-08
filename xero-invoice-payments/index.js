@@ -24,15 +24,11 @@ module.exports = async function(context, req) {
     // CONNECT TO XERO USING THE IMPORTED SDK
     let xero = new XeroClient(xeroConfig, oauth_token);
 
-    context.log("xero " + xero);
-
     // Send request data to the Xero invoices API and wait for a response
     const result = await xero.invoices.get({
       Statuses: "PAID",
       createdByMyApp: true
     });
-
-    context.log(JSON.stringify("result " + result));
 
     // GET PAID INVOICES IN XERO AND PUSH TO ARRAY
     // SELECT ONLY INVOICES THAT HAS A REFERENCE CONTAINING "WBID"
@@ -45,7 +41,6 @@ module.exports = async function(context, req) {
       // BELOW IS ONLY TO FILTER OUT AN INVOICE WE USED IN TESTING. CAN DELETE THIS LINE LATER
       .filter(r => r !== "INV159");
 
-    context.log(JSON.stringify("filtered " + filtered));
     // IF NOTHING IS RETURNED, SEND BACK A 200 RESPONSE WITH a '401' CODE SO OUR APP CAN DISPLAY "NONE FOUND"
     if (filtered.length === 0) {
       context.res = {
@@ -77,12 +72,24 @@ module.exports = async function(context, req) {
       i => i.PaymentStatusForSystemsWithoutFinance < 70
     );
 
+    // MAP FILTERED XERO RESULTS SO WE CAN RE-NAME AND ADD VALUES
+    const xeroMapped = result.Invoices.map(i => {
+      return {
+        contact: i.Contact.Name,
+        xeroTotalPaid: i.Total,
+        FullyPaidOnDate: i.FullyPaidOnDate,
+        workbookID: parseInt(
+          i.Reference.replace("Id: ", "").replace(/\,.*/, "")
+        )
+      };
+    });
+
     // MERGE XERO AND WB RESULTS BY INVOICE ID
     let merged = unpaid.map(item1 => {
       return Object.assign(
         item1,
-        result.Invoices.find(item2 => {
-          return item2 && item1.number === item2.invoice;
+        xeroMapped.find(item2 => {
+          return item2 && item1.Id === item2.workbookID;
         })
       );
     });

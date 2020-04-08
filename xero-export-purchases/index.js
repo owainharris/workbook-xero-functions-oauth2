@@ -9,12 +9,14 @@ module.exports = async function(context, req) {
       delete req.body.purchaseOrders[i].Total;
     }
   }
+
   // connect to xero
   let xero = new XeroClient(xeroConfig, oauth_token);
 
   // Send request data to the Xero purchases API and wait for a response
   try {
     let result = await xero.purchaseOrders.create(req.body);
+    context.log("RESULT!" + result);
     // Check and filter for returned response errors or warnings for each purchases
     let issues = result.PurchaseOrders.map(e => {
       return {
@@ -24,6 +26,7 @@ module.exports = async function(context, req) {
       };
     }).filter(obj => obj);
     let response = await issues;
+    context.log(response);
 
     // Send returned data from Xero including errors or warnings
     context.res = {

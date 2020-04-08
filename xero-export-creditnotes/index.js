@@ -38,6 +38,10 @@ module.exports = async function(context, req) {
       };
     }).filter(obj => obj);
     let response = await issues;
+
+    console.log("Issues: " + response);
+    console.log("Issues: " + JSON.stringify(response));
+
     // Send returned data from Xero including errors or warnings
     context.res = {
       status: 200,
