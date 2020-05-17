@@ -32,6 +32,8 @@ module.exports = async function (connections, auth, invoices) {
       };
     });
 
+    console.log("GOT LINES");
+
     return invoiceLines;
   } catch (e) {
     console.log(e);

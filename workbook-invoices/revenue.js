@@ -25,8 +25,6 @@ module.exports = async function(connections, auth, activities) {
       );
     });
 
-    console.log('flattenedRevenue ' + JSON.stringify(flattenedRevenue));
-
     const mappedActRev = flattenedRevenue
       .map(item => {
         return {
@@ -38,9 +36,9 @@ module.exports = async function(connections, auth, activities) {
         return item.AccountCode !== undefined;
       });
 
-    console.log('mappedActRev ' + JSON.stringify(mappedActRev));
-
     let revenue = mappedActRev;
+
+    console.log("GOT REV")
 
     return revenue;
   } catch (e) {

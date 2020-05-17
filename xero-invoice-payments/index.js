@@ -25,21 +25,38 @@ module.exports = async function(context, req) {
     let xero = new XeroClient(xeroConfig, oauth_token);
 
     // Send request data to the Xero invoices API and wait for a response
+  invoicesArr = [];  
+  async function getPaidInvoices(page) {
     const result = await xero.invoices.get({
       Statuses: "PAID",
-      createdByMyApp: true
-    });
+      "If-Modified-Since": '2020-03-14T20:35:28',
+      createdByMyApp: true,
+      page: page,
+    })
+    invoicesArr.push(result.Invoices);
+
+    if (result.Invoices.length === 100) {
+      page++;
+      res = await getPaidInvoices(page);
+    }
+    let invoicesFlattened = [].concat.apply([], invoicesArr);
+    return invoicesFlattened;
+  }
+
+  const pagedInvoices = await getPaidInvoices(1)
+
 
     // GET PAID INVOICES IN XERO AND PUSH TO ARRAY
     // SELECT ONLY INVOICES THAT HAS A REFERENCE CONTAINING "WBID"
-    const filtered = result.Invoices.filter(i => i.Reference.includes("Id:"))
+    const filtered = pagedInvoices.filter(i => i.Reference.includes("Id:"))
       // CREATE A NEW ARRAY OF ONLY THE REFERENCE FIELD
       .map(i => i.Reference)
       // STRIP OUT THE "Id:" SO WE CAN UST OBTAIN AN ARRAY OF IDs TO SEND TO WORKBOOK
       .map(s => s.replace("Id: ", ""))
       .map(k => k.replace(/\,.*/, ""))
       // BELOW IS ONLY TO FILTER OUT AN INVOICE WE USED IN TESTING. CAN DELETE THIS LINE LATER
-      .filter(r => r !== "INV159");
+
+      context.log("filtered " + JSON.stringify(filtered))
 
     // IF NOTHING IS RETURNED, SEND BACK A 200 RESPONSE WITH a '401' CODE SO OUR APP CAN DISPLAY "NONE FOUND"
     if (filtered.length === 0) {
@@ -63,17 +80,22 @@ module.exports = async function(context, req) {
       return res.data;
     });
 
+    context.log("WBInvoices " + JSON.stringify(WBInvoices))
+
     // ONCE ALL RESULTS FROM WB ARE BACK, FLATTEN INTO 1 ARRAY
     const invoicesResponse = await Promise.all(WBInvoices);
+    context.log("invoicesResponse " + JSON.stringify(invoicesResponse))
     const flattenedinvoices = [].concat(...invoicesResponse);
+    context.log("flattenedinvoices " + JSON.stringify(flattenedinvoices))
 
     // FILTER OUT INVOICES THAT ARE ALREADY PAID IN WORKBOOK *STATUS 70*
     const unpaid = flattenedinvoices.filter(
       i => i.PaymentStatusForSystemsWithoutFinance < 70
     );
+    context.log("unpaid " + unpaid)
 
     // MAP FILTERED XERO RESULTS SO WE CAN RE-NAME AND ADD VALUES
-    const xeroMapped = result.Invoices.map(i => {
+    const xeroMapped = pagedInvoices.map(i => {
       return {
         contact: i.Contact.Name,
         xeroTotalPaid: i.Total,
@@ -84,6 +106,8 @@ module.exports = async function(context, req) {
       };
     });
 
+    context.log("xeroMapped " + JSON.stringify(xeroMapped))
+
     // MERGE XERO AND WB RESULTS BY INVOICE ID
     let merged = unpaid.map(item1 => {
       return Object.assign(
@@ -93,6 +117,8 @@ module.exports = async function(context, req) {
         })
       );
     });
+
+    context.log("merged " + JSON.stringify(merged))
 
     // SEND MERGED DATA BACK TO OUR APP
     context.res = {

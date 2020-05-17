@@ -102,7 +102,6 @@ module.exports = async function(context, req) {
       return invoice;
     });
 
-    context.log(JSON.stringify(invoiceDetails));
 
     /* IF NO ERRORS, RETURN HTTP 200 WITH PAYLOAD TO CLIENT */
     context.res = {
