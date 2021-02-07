@@ -1,5 +1,5 @@
 const axios = require("axios");
-const addDays = require("date-fns/add_days");
+const addDays = require('date-fns/add')
 module.exports = async function (context, req) {
   const baseURL = await req.body.auth.baseURL;
   const workbookUserName = await req.body.auth.workbookUserName;
@@ -92,7 +92,9 @@ module.exports = async function (context, req) {
       .map((item) => {
         let DeliveryDate =
           item.DeliveryDate === undefined || item.DeliveryDate === null
-            ? addDays(Date.now(), 30)
+            ? addDays(Date.now(),{
+              days: 30,
+            })
             : item.DeliveryDate;
         let ExternalCode =
           item.externalCode === ""
