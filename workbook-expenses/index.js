@@ -83,7 +83,7 @@ module.exports = async function(context, req) {
 
     // NEXT WE CAN OBTAIN EMPOYEE DATA
     const vendorResponse = await axios.get(
-      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/accounts/creditors?EmployeeCreditor=true`,
+      `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/accounts/creditors`,
       headers
     );
     let vendors = vendorResponse.data.map(i => {
@@ -260,7 +260,8 @@ module.exports = async function(context, req) {
       return {
         Type: 'ACCPAY',
         Contact: {
-          Name: i.Name
+          Name: i.Name,
+          AccountCode: i.AccountCode
         },
         Date: i.Date,
         DueDate: i.InvoiceDueDate,

@@ -23,6 +23,8 @@ module.exports = async function(context, req) {
     companyID = "";
   }
 
+
+
   // ENCRYPT CREDENTIALS
   const credentials = workbookUserName + ":" + workbookPassword;
   const encoded = Buffer.from(credentials).toString("base64");
@@ -58,6 +60,7 @@ module.exports = async function(context, req) {
     CompanyId: `${companyID}`
   };
 
+
   try {
     /*
     RETRIEVE BOTH INVOICE IDs AND ACTIVITY IDs. WE WILL NEED THESE
@@ -75,6 +78,8 @@ module.exports = async function(context, req) {
     }
     const activities = await act(connections, auth);
 
+  
+
     /* NOW THAT WE HAVE OUR IDs, WE CAN LOOP THROUGH THE OTHER REQUESTS */
     const [invoiceDetails, invoiceLines, revenue] = await Promise.all([
       invDetails(connections, auth, invoices),
@@ -82,7 +87,7 @@ module.exports = async function(context, req) {
       rev(connections, auth, activities)
     ]);
 
-    /* NOW WE HAVE ALL OUR DATA, WE NEED TO MERGE ACTIVITES
+    /*NOW WE HAVE ALL OUR DATA, WE NEED TO MERGE ACTIVITES
     INTO THE SAME OBJECT AS OUR REVENUE. */
     invoiceLines.map(item1 => {
       return Object.assign(
