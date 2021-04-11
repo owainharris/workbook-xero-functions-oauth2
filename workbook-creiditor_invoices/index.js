@@ -1,31 +1,31 @@
-const axios = require('axios');
+const axios = require("axios");
 
-module.exports = async function(context, req) {
+module.exports = async function (context, req) {
   // GET AUTHENTICATION DETAILS FROM USER POST
   const baseURL = await req.body.auth.baseURL;
   const workbookUserName = await req.body.auth.workbookUserName;
   const workbookPassword = await req.body.auth.workbookPassword;
   let companyID = await req.body.auth.companyID;
-  const credentials = workbookUserName + ':' + workbookPassword;
-  const encoded = Buffer.from(credentials).toString('base64');
+  const credentials = workbookUserName + ":" + workbookPassword;
+  const encoded = Buffer.from(credentials).toString("base64");
   if (companyID == undefined) {
     companyID = 1;
   }
   const headers = {
     headers: {
       Authorization: `Basic ${encoded}`,
-      Accept: 'application/json',
-      'Access-Control-Allow-Credentials': 'true',
-      'Access-Control-Allow-Origin': '*',
-      'X-Requested-With': 'application/json'
-    }
+      Accept: "application/json",
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Origin": "*",
+      "X-Requested-With": "application/json",
+    },
   };
 
   const headers2 = {
     headers: {
       Authorization: `Basic ${encoded}`,
-      Accept: 'application/json'
-    }
+      Accept: "application/json",
+    },
   };
 
   try {
@@ -40,42 +40,44 @@ module.exports = async function(context, req) {
     if (creditors.data.length === 0) {
       context.res = {
         status: 200,
-        body: 'none'
+        body: "none",
       };
     }
 
     let creditorInvoices = await creditors.data
 
       // FILTER FOR: STAUS=40 (PROCESSED), TYPE=1(CREDITOR INVOICE)
-      .filter(i => i.VoucherStatusId === 40 && i.VoucherType === 0)
-      .map(i => {
+      .filter((i) => i.VoucherStatusId === 40 && i.VoucherType === 0)
+      .map((i) => {
         if (i.Comment === undefined) {
-          i.Comment = '';
+          i.Comment = "";
         }
         // RETURN DATA IN FORMAT WE WILL SEND BACK TO THE CLIENT AND THEN TO XERO
         return {
-          Type: 'ACCPAY',
+          Type: "ACCPAY",
           Total: i.TotalAmount,
           VendorId: i.VendorId,
           Date: i.InvoiceDate,
           InvoiceDueDate: i.InvoiceDueDate,
-          LineAmountTypes: 'Exclusive',
+          LineAmountTypes: "Exclusive",
           Reference: i.Comment,
           CurrencyId: i.CurrencyId,
-          Status: 'DRAFT',
+          Status: "DRAFT",
           LineItems: {},
           CreditorInvoiceId: i.Id,
           InvoiceNumber: i.InvoiceNumber,
-          VoucherNumber: i.VoucherNumber
+          VoucherNumber: i.VoucherNumber,
         };
       });
 
     // EXTRACT PARENT CREDITOR INVOICE ID's SO WE CAN LOOP THROUGH REQUESTS AND GET THEIR LINE ITEMS
-    let creditorInvoiceIds = creditorInvoices.map(ids => ids.CreditorInvoiceId);
+    let creditorInvoiceIds = creditorInvoices.map(
+      (ids) => ids.CreditorInvoiceId
+    );
 
     // LOOP THROUGH INVOICE DETIALS
     const creditorInvoiceDetailsArr = await creditorInvoiceIds.map(
-      async ids => {
+      async (ids) => {
         const response = await axios.get(
           `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/voucher/${ids}/details`,
           headers
@@ -98,10 +100,11 @@ module.exports = async function(context, req) {
       `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/accounts/creditors?EmployeeCreditor=false`,
       headers
     );
-    let vendors = vendorResponse.data.map(i => {
+    let vendors = vendorResponse.data.map((i) => {
       return {
         Id: i.Id,
-        Name: i.Name
+        Name: i.Name,
+        ExternalCode: i.AccountNumber
       };
     });
 
@@ -110,10 +113,10 @@ module.exports = async function(context, req) {
       `https://immense-shore-64867.herokuapp.com/${baseURL}/api/core/currencies`,
       headers
     );
-    let currencies = await currencyResponse.data.map(i => {
+    let currencies = await currencyResponse.data.map((i) => {
       return {
         Id: i.Id,
-        IsoCode: i.IsoCode
+        IsoCode: i.IsoCode,
       };
     });
 
@@ -123,14 +126,14 @@ module.exports = async function(context, req) {
       headers
     );
     let costAccounts = await costAccountsResponse.data
-      .map(i => {
+      .map((i) => {
         return {
           costAccountId: i.Id,
           costAllowVendorInvoice: i.AllowVendorInvoice,
-          costAccountNumber: i.AccountNumber
+          costAccountNumber: i.AccountNumber,
         };
       })
-      .filter(result => {
+      .filter((result) => {
         return result.costAllowVendorInvoice === true;
       });
 
@@ -143,16 +146,16 @@ module.exports = async function(context, req) {
 
     // EXTRACT A NEW ARRAY TO GET REVENUE ACCOUNT IDs. WE WILL NEED THIS TO MERGE ACTIVIES WITH REVENUE CODES
     let revenueIds = activitiesResults
-      .filter(result => {
+      .filter((result) => {
         return result.RevenueAccountId !== undefined;
       })
-      .map(result => {
+      .map((result) => {
         return result.RevenueAccountId;
       });
     const uniqueRevenueIds = [...new Set(revenueIds)];
 
     // USE THE UNIQUE IDS ABOVE TO LOOP THROUGH AND GET REQUIRED REVENUE DATA
-    const revenueAccountsArr = uniqueRevenueIds.map(async ids => {
+    const revenueAccountsArr = uniqueRevenueIds.map(async (ids) => {
       const response = await axios.get(
         `https://immense-shore-64867.herokuapp.com/${baseURL}/api/finance/account/${ids}`,
         headers
@@ -163,23 +166,23 @@ module.exports = async function(context, req) {
 
     // NOW WE NEED TO MERGE ACTIVITIES WITH REVENUE ACCOUNTS
     let mergedRevenue = activitiesResults
-      .map(item1 => {
+      .map((item1) => {
         return Object.assign(
           item1,
-          revenueAccounts.find(item2 => {
+          revenueAccounts.find((item2) => {
             return item2 && item1.RevenueAccountId === item2.Id;
           })
         );
       })
-      .filter(result => {
+      .filter((result) => {
         return result.AccountNumber !== undefined;
       });
 
     // NOW WE NEED TO MERGE ACTIVITIES WITH COST ACCOUNTS
-    let mergedChargeableCost = mergedRevenue.map(item1 => {
+    let mergedChargeableCost = mergedRevenue.map((item1) => {
       return Object.assign(
         item1,
-        costAccounts.find(item2 => {
+        costAccounts.find((item2) => {
           return (
             (item2 && item1.ChargeableJobAccountId === item2.costAccountId) ||
             item1.NonChargeableJobAccountId === item2.costAccountId
@@ -202,7 +205,7 @@ module.exports = async function(context, req) {
 
     // NOW LETS ONLY RETURN THE FIELDS WE NEED FROM THE ARRAY
     const mappedActRev = mergedChargeableCost
-      .map(item => {
+      .map((item) => {
         let account;
         if (item.costAccountNumber !== undefined) {
           account = item.costAccountNumber;
@@ -211,11 +214,11 @@ module.exports = async function(context, req) {
         }
         return {
           ActivityId: item.ActivityId,
-          AccountNumber: account
+          AccountNumber: account,
         };
       })
       // WE NEED TO STRIP OUT ANY REDUNDANT ACTIVITES
-      .filter(item => {
+      .filter((item) => {
         return item.AccountNumber !== undefined;
       });
 
@@ -223,17 +226,17 @@ module.exports = async function(context, req) {
     let revenue = mappedActRev;
 
     // NOW THAT WE HAVE OUR REVENUE ARRAY, WE NEED TO MERGE IT INTO OUR CREDITOR INVOICE LINE ITEMS
-    flattenedCreditorInvoiceDetails.map(item1 => {
+    flattenedCreditorInvoiceDetails.map((item1) => {
       return Object.assign(
         item1,
-        revenue.find(item2 => {
+        revenue.find((item2) => {
           return item2 && item1.ActivityId === item2.ActivityId;
         })
       );
     });
 
     // THEN WE CAN OUTPUT THIS INTO THE FORMAT WE NEED
-    let creditorInvoiceDetails = flattenedCreditorInvoiceDetails.map(i => {
+    let creditorInvoiceDetails = flattenedCreditorInvoiceDetails.map((i) => {
       return {
         Id: i.Id,
         VoucherNumber: i.VoucherNumber,
@@ -241,69 +244,70 @@ module.exports = async function(context, req) {
         Quantity: 1,
         UnitAmount: i.NetAmount,
         TaxAmount: i.VATAmount,
-        AccountCode: i.AccountNumber
+        AccountCode: i.AccountNumber,
       };
     });
 
     // NOW WE CAN MERGE OUR CREDITOR INVOICE LINE ITEMS INTO A SUB ARRAY WITHIN OUR PARENT CREDITOR INVOICES
 
     const joinCreditorInvoicesWithDetails = creditorInvoices.map(
-      creditorInvoice => {
+      (creditorInvoice) => {
         creditorInvoice.LineItems = creditorInvoiceDetails.filter(
-          line => line.VoucherNumber === creditorInvoice.VoucherNumber
+          (line) => line.VoucherNumber === creditorInvoice.VoucherNumber
         );
         return creditorInvoice;
       }
     );
 
     // NOW WE CAN MERGE OUR CURRENY DATA INTO OUR MAIN DATA
-    let mappedCurrencies = joinCreditorInvoicesWithDetails.map(item1 => {
+    let mappedCurrencies = joinCreditorInvoicesWithDetails.map((item1) => {
       return Object.assign(
         item1,
-        currencies.find(item2 => {
+        currencies.find((item2) => {
           return item2 && item1.CurrencyId === item2.Id;
         })
       );
     });
 
     // NOW WE CAN MERGE OUR SUPPLIER DATA INTO OUR MAIN DATA
-    let mappedVevdors = mappedCurrencies.map(item1 => {
+    let mappedVevdors = mappedCurrencies.map((item1) => {
       return Object.assign(
         item1,
-        vendors.find(item2 => {
+        vendors.find((item2) => {
           return item2 && item1.VendorId === item2.Id;
         })
       );
     });
 
     // NOW WE CAN FINALIZE THE ABOVE INTO THE FORMAT WE NEED
-    let creditorInvoicesFormatted = mappedVevdors.map(i => {
+    let creditorInvoicesFormatted = mappedVevdors.map((i) => {
       return {
-        Type: 'ACCPAY',
+        Type: "ACCPAY",
         Contact: {
-          Name: i.Name
+          Name: i.Name,
+          ExternalCode: i.ExternalCode
         },
         Date: i.Date,
         DueDate: i.InvoiceDueDate,
         Reference: i.Reference,
         Total: i.Total,
         CurrencyCode: i.IsoCode,
-        LineAmountTypes: 'Exclusive',
+        LineAmountTypes: "Exclusive",
         LineItems: i.LineItems,
         InvoiceNumber: i.InvoiceNumber,
-        Id: i.CreditorInvoiceId
+        Id: i.CreditorInvoiceId,
       };
     });
 
     context.res = {
       status: 200,
-      body: creditorInvoicesFormatted
+      body: creditorInvoicesFormatted,
     };
   } catch (e) {
     console.log(e);
     context.res = {
       status: 200,
-      body: '9'
+      body: "9",
     };
   }
 };
